@@ -66,7 +66,8 @@ func (s *srv) RegisterRoutes(server *web.Server) {
 }
 
 func (s *srv) handleDiscover(c echo.Context) error {
-	logger := log.FromContext(s.ctx).WithFields(log.Fields(
+	ctx := c.Request().Context()
+	logger := log.FromContext(ctx).WithFields(log.Fields(
 		"endpoint", "discover",
 		"remote_addr", c.Request().RemoteAddr,
 	))
@@ -96,7 +97,7 @@ func (s *srv) handleDiscover(c echo.Context) error {
 	ids := ttnpb.GatewayIdentifiers{
 		EUI: &req.EUI.EUI64,
 	}
-	ctx, ids, err := s.server.FillGatewayContext(s.ctx, ids)
+	ctx, ids, err = s.server.FillGatewayContext(ctx, ids)
 	if err != nil {
 		logger.WithError(err).Debug("Failed to fill gateway context")
 		writeDiscoverError(ctx, ws, "Router not provisioned")
@@ -129,9 +130,10 @@ func (s *srv) handleDiscover(c echo.Context) error {
 }
 
 func (s *srv) handleTraffic(c echo.Context) error {
+	var latestUpstreamXTime int64
 	id := c.Param("id")
 	auth := c.Request().Header.Get(echo.HeaderAuthorization)
-	ctx := s.ctx
+	ctx := c.Request().Context()
 	if auth != "" {
 		md := metadata.New(map[string]string{
 			"id":            id,
@@ -195,7 +197,6 @@ func (s *srv) handleTraffic(c echo.Context) error {
 	}
 	defer ws.Close()
 
-	// Process downlinks in a separate go routine
 	go func() {
 		for {
 			select {
@@ -203,7 +204,7 @@ func (s *srv) handleTraffic(c echo.Context) error {
 				return
 			case down := <-conn.Down():
 				dlTime := time.Now()
-				dnmsg := messages.FromDownlinkMessage(ids, *down, int64(s.tokens.Next(down.CorrelationIDs, dlTime)), dlTime)
+				dnmsg := messages.FromDownlinkMessage(ids, *down, int64(s.tokens.Next(down.CorrelationIDs, dlTime)), dlTime, latestUpstreamXTime)
 				msg, err := dnmsg.MarshalJSON()
 				if err != nil {
 					logger.WithError(err).Error("Failed to marshal downlink message")
@@ -218,6 +219,7 @@ func (s *srv) handleTraffic(c echo.Context) error {
 			}
 		}
 	}()
+
 	for {
 		_, data, err := ws.ReadMessage()
 		if err != nil {
@@ -248,12 +250,12 @@ func (s *srv) handleTraffic(c echo.Context) error {
 				"firmware", version.Firmware,
 				"model", version.Model,
 			))
-			cfg, err := messages.GetRouterConfig(*fp, version.IsProduction())
+			cfg, err := messages.GetRouterConfig(*fp, version.IsProduction(), time.Now())
 			if err != nil {
 				logger.WithError(err).Warn("Failed to generate router configuration")
 				return err
 			}
-			data, err = json.Marshal(cfg)
+			data, err = cfg.MarshalJSON()
 			if err != nil {
 				logger.WithError(err).Warn("Failed to marshal response message")
 				return err
@@ -278,6 +280,7 @@ func (s *srv) handleTraffic(c echo.Context) error {
 				logger.WithError(err).Warn("Failed to handle uplink message")
 			}
 			recordRTT(conn, receivedAt, jreq.RefTime)
+			latestUpstreamXTime = jreq.UpInfo.XTime
 
 		case messages.TypeUpstreamUplinkDataFrame:
 			var updf messages.UplinkDataFrame
@@ -294,6 +297,7 @@ func (s *srv) handleTraffic(c echo.Context) error {
 				logger.WithError(err).Warn("Failed to handle uplink message")
 			}
 			recordRTT(conn, receivedAt, updf.RefTime)
+			latestUpstreamXTime = updf.UpInfo.XTime
 
 		case messages.TypeUpstreamTxConfirmation:
 			var txConf messages.TxConfirmation
@@ -319,7 +323,6 @@ func (s *srv) handleTraffic(c echo.Context) error {
 			return errMessageTypeNotImplemented.WithAttributes("type", typ)
 
 		default:
-			// Unknown message types are ignored by the server
 			logger.WithField("message_type", typ).Debug("Unknown message type")
 		}
 	}
