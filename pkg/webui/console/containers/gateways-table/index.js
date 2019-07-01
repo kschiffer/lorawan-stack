@@ -20,6 +20,12 @@ import sharedMessages from '../../../lib/shared-messages'
 import FetchTable from '../fetch-table'
 
 import { getGatewaysList } from '../../../console/store/actions/gateways'
+import {
+  selectGateways,
+  selectGatewaysTotalCount,
+  selectGatewaysFetching,
+  selectGatewaysError,
+} from '../../store/selectors/gateways'
 
 const m = defineMessages({
   add: 'Add Gateway',
@@ -70,8 +76,13 @@ export default class GatewaysTable extends React.Component {
     ])
   }
 
-  baseDataSelector ({ gateways }) {
-    return gateways
+  baseDataSelector (state) {
+    return {
+      gateways: selectGateways(state),
+      totalCount: selectGatewaysTotalCount(state),
+      fetching: selectGatewaysFetching(state),
+      error: selectGatewaysError(state),
+    }
   }
 
   render () {

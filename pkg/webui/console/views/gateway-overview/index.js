@@ -108,7 +108,7 @@ export default class GatewayOverview extends React.Component {
     return (
       <div className={style.overviewInfo}>
         <h2 className={style.title}>{name || gtwId}</h2>
-        <GatewayStatistics className={style.statistics} gtwId={gtwId} />
+        {/* <GatewayStatistics className={style.statistics} gtwId={gtwId} /> */}
         <DataSheet data={sheetData} />
       </div>
     )
