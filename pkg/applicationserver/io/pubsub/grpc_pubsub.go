@@ -68,7 +68,7 @@ func (ps *PubSub) List(ctx context.Context, req *ttnpb.ListApplicationPubSubsReq
 
 // Set implements ttnpb.ApplicationPubSubRegistryServer.
 func (ps *PubSub) Set(ctx context.Context, req *ttnpb.SetApplicationPubSubRequest) (*ttnpb.ApplicationPubSub, error) {
-	if err := rights.RequireApplication(ctx, req.ApplicationIdentifiers, ttnpb.RIGHT_APPLICATION_TRAFFIC_READ); err != nil {
+	if err := rights.RequireApplication(ctx, req.ApplicationIdentifiers, ttnpb.RIGHT_APPLICATION_TRAFFIC_DOWN_WRITE); err != nil {
 		return nil, err
 	}
 	// Get all the fields here for starting the integration task.
@@ -89,7 +89,7 @@ func (ps *PubSub) Set(ctx context.Context, req *ttnpb.SetApplicationPubSubReques
 	if err := ps.stop(ctx, req.ApplicationPubSubIdentifiers); err != nil && !errors.IsNotFound(err) {
 		log.FromContext(ctx).WithError(err).Warn("Failed to cancel integration")
 	}
-	ps.startIntegrationTask(ps.ctx, req.ApplicationPubSubIdentifiers)
+	ps.startTask(ps.ctx, req.ApplicationPubSubIdentifiers)
 
 	res := &ttnpb.ApplicationPubSub{}
 	if err := res.SetFields(pubsub, req.FieldMask.Paths...); err != nil {
@@ -100,7 +100,7 @@ func (ps *PubSub) Set(ctx context.Context, req *ttnpb.SetApplicationPubSubReques
 
 // Delete implements ttnpb.ApplicationPubSubRegistryServer.
 func (ps *PubSub) Delete(ctx context.Context, ids *ttnpb.ApplicationPubSubIdentifiers) (*pbtypes.Empty, error) {
-	if err := rights.RequireApplication(ctx, ids.ApplicationIdentifiers, ttnpb.RIGHT_APPLICATION_TRAFFIC_READ); err != nil {
+	if err := rights.RequireApplication(ctx, ids.ApplicationIdentifiers, ttnpb.RIGHT_APPLICATION_TRAFFIC_DOWN_WRITE); err != nil {
 		return nil, err
 	}
 	if err := ps.stop(ctx, *ids); err != nil {
