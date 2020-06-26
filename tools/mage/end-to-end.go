@@ -67,9 +67,13 @@ func (EndToEnd) prepareDB() error {
 	return nil
 }
 
+func (EndToEnd) prepareBuild() {
+	mg.SerialDeps(Js.Deps, Js.Build)
+}
+
 // Prepare prepares the server for running end to end tests.
 func (EndToEnd) Prepare() {
-	mg.Deps(EndToEnd.prepareDB, Js.Build)
+	mg.Deps(EndToEnd.prepareDB, EndToEnd.prepareBuild)
 }
 
 // DBDump performs a database dump to the .cache folder.

@@ -93,7 +93,7 @@ jobs:
       - name: Initialize stack environment
         run: tools/bin/mage init
       - name: Run test preparations
-        run: tools/bin/mage endToEnd:prepare
+        run: tools/bin/mage -v endToEnd:prepare
       - name: Run frontend end-to-end tests
         run: tools/bin/mage endToEnd:startTestStack & tools/bin/mage -v endToEnd:runFrontend
       - name: Upload screenshots if failed
